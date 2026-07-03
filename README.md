@@ -13,17 +13,18 @@ This client implements Pokémon Sword/Shield LAN trade protocol flow over UDP:
 
 Dumped files can be opened by PKHeX.
 
-## Requirements to Build
+## Requirements to Run
 
-- .NET SDK 10.0+
+- .NET Runtime 10.0+
 - Nintendo Switch with Sword / Shield
 - Computer to run this application on the same local network as the Switch
 
 ## Usage
 
-- The Nintendo Switch must be in LAN mode and on the same local network. Search for a trade.
-- Run the executable that is built.
-- The client will automatically discover the host, connect, and dump the party Pokémon.
+- Double click PokePia.exe and have it listen.
+- Go into LAN mode on SWSH (L + R + Left Stick in Settings).
+- Start a local trade with no Link Code.
+- The program should detect your SWSH game and analyze/dump your party.
 
 ## Notes
 

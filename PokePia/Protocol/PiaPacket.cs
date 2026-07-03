@@ -7,33 +7,36 @@ namespace PokePia.Protocol;
 
 internal sealed class PiaPacket : IByteSerializable
 {
-    private static readonly byte[] Magic = [0x32, 0xAB, 0x98, 0x64];
+    public static ReadOnlySpan<byte> Magic => [0x32, 0xAB, 0x98, 0x64];
 
-    public PiaPacket(bool isEncrypted, byte version, byte connectionId, ushort packetId, ReadOnlyMemory<byte> nonce, ReadOnlyMemory<byte> authTag, ReadOnlyMemory<byte> data)
+    public required bool IsEncrypted { get; init; }
+    public required byte Version { get; init; }
+    public required byte ConnectionId { get; init; }
+    public required ushort PacketId { get; init; }
+
+    public required ReadOnlyMemory<byte> Nonce
     {
-        if (nonce.Length != 8)
-            throw new ArgumentException("PIA nonce must be 8 bytes.", nameof(nonce));
-
-        if (authTag.Length != 16)
-            throw new ArgumentException("PIA auth tag must be 16 bytes.", nameof(authTag));
-
-        IsEncrypted = isEncrypted;
-        Version = version;
-        ConnectionId = connectionId;
-        PacketId = packetId;
-        Nonce = nonce;
-        AuthTag = authTag;
-        Data = data;
+        get;
+        init
+        {
+            if (value.Length != 8)
+                throw new ArgumentException("PIA nonce must be 8 bytes.", nameof(value));
+            field = value;
+        }
     }
 
-    public bool IsEncrypted { get; }
-    public byte Version { get; }
-    public byte ConnectionId { get; }
-    public ushort PacketId { get; }
+    public required ReadOnlyMemory<byte> AuthTag
+    {
+        get;
+        init
+        {
+            if (value.Length != 16)
+                throw new ArgumentException("PIA auth tag must be 16 bytes.", nameof(value));
+            field = value;
+        }
+    }
 
-    public ReadOnlyMemory<byte> Nonce { get; }
-    public ReadOnlyMemory<byte> AuthTag { get; }
-    public ReadOnlyMemory<byte> Data { get; }
+    public required ReadOnlyMemory<byte> Data { get; init; }
 
     public static PiaPacket Parse(ReadOnlyMemory<byte> data)
     {
@@ -51,14 +54,16 @@ internal sealed class PiaPacket : IByteSerializable
 
         var connectionId = span[5];
         var packetId = BinaryPrimitives.ReadUInt16BigEndian(span.Slice(6, 2));
-        return new PiaPacket(
-            isEncrypted: (flags & 0x80) != 0,
-            version,
-            connectionId,
-            packetId,
-            data.Slice(8, 8),
-            data.Slice(16, 16),
-            data[32..]);
+        return new PiaPacket
+        {
+            IsEncrypted = (flags & 0x80) != 0,
+            Version = version,
+            ConnectionId = connectionId,
+            PacketId = packetId,
+            Nonce = data.Slice(8, 8),
+            AuthTag = data.Slice(16, 16),
+            Data = data[32..],
+        };
     }
 
     public static PiaPacket FromMessage(PiaMessage message, byte connectionId, ushort packetId, ReadOnlySpan<byte> headerNonce, IPAddress sourceAddress, ReadOnlySpan<byte> sessionKey)
@@ -80,7 +85,16 @@ internal sealed class PiaPacket : IByteSerializable
         using var aes = new AesGcm(sessionKey, 16);
         aes.Encrypt(nonce, messageBytes, encrypted, authTag);
 
-        return new PiaPacket(true, 4, connectionId, packetId, headerNonce[..8].ToArray(), authTag, encrypted);
+        return new PiaPacket
+        {
+            IsEncrypted = true,
+            Version = 4,
+            ConnectionId = connectionId,
+            PacketId = packetId,
+            Nonce = headerNonce[..8].ToArray(),
+            AuthTag = authTag,
+            Data = encrypted,
+        };
     }
 
     public IReadOnlyList<PiaMessage> DecryptMessages(IPAddress sourceAddress, ReadOnlySpan<byte> sessionKey)

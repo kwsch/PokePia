@@ -1,16 +1,21 @@
 ﻿using PKHeX.Core;
 using PokePia.Client;
 using PokePia.Trade;
+using System.Diagnostics;
 
 namespace PokePia;
 
 internal abstract class Program
 {
+    private static readonly CancellationTokenSource CancellationTokenSource = new();
+
     private static int Main()
     {
+        Console.CancelKeyPress += ConsoleOnCancelKeyPress;
+
         try
         {
-            using var client = new TradeClient(Log);
+            using var client = new TradeClient(CancellationTokenSource, Log);
             client.Matchmake();
             client.EstablishConnection();
             client.JoinMesh();
@@ -27,9 +32,17 @@ internal abstract class Program
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Client failed: {ex.Message}");
+            Debug.WriteLine(ex.StackTrace);
             return 1;
         }
+        finally
+        {
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
+        }
     }
+
+    private static void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e) => e.Cancel = true; // Prevent immediate exit
 
     private static void Log(string message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {message}");
 
@@ -43,8 +56,11 @@ internal abstract class Program
         // Dump team to folder
         Log("Dumping team...");
         var dir = Path.GetDirectoryName(Environment.ProcessPath) ?? "";
+        DumpParty(snapshot.Party, dir);
+    }
 
-        var party = snapshot.Party;
+    private static void DumpParty(IReadOnlyList<PK8> party, string dir)
+    {
         for (var slot = 0; slot < party.Count; slot++)
         {
             var pk = party[slot];

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
@@ -12,7 +13,7 @@ internal sealed class TradeClient : IDisposable
     private readonly Socket _socket;
     private readonly List<Socket> _listenerSockets;
     private readonly List<Task> _listenerTasks;
-    private readonly CancellationTokenSource _listenerCancellation = new();
+    private readonly CancellationTokenSource _listenerCancellation;
     private readonly object _queueLock = new();
     private readonly List<Packet> _packetQueue = [];
     private readonly SaveContext _saveContext = new();
@@ -28,8 +29,9 @@ internal sealed class TradeClient : IDisposable
     public StationLocation StationLocation { get; }
     private Action<string> Log { get; }
 
-    public TradeClient(Action<string>? logger = null)
+    public TradeClient(CancellationTokenSource cts, Action<string>? logger = null)
     {
+        _listenerCancellation = cts;
         Log = logger ?? Console.WriteLine;
         var localIp = ResolveLocalIpAddress();
         StationLocation = StationLocation.FromAddress(new IPEndPoint(localIp, 49152));
@@ -38,11 +40,12 @@ internal sealed class TradeClient : IDisposable
         _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
 
+        var token = cts.Token;
         _listenerSockets = [_socket, CreateListenerSocket(40000)];
         _listenerTasks =
         [
-            Task.Run(() => ListenOnSocket(_socket, StationLocation.PrivateAddress.Port, _listenerCancellation.Token), _listenerCancellation.Token),
-            Task.Run(() => ListenOnSocket(_listenerSockets[1], 40000, _listenerCancellation.Token), _listenerCancellation.Token),
+            Task.Run(() => ListenOnSocket(_socket, StationLocation.PrivateAddress.Port, token), token),
+            Task.Run(() => ListenOnSocket(_listenerSockets[1], 40000, token), token),
         ];
     }
 
@@ -57,6 +60,9 @@ internal sealed class TradeClient : IDisposable
         Packet? reply;
         do
         {
+            if (_listenerCancellation.IsCancellationRequested)
+                return;
+
             Log("Broadcasting BrowseRequest");
             ClearPacketQueue();
             var request = new BrowseRequest
@@ -92,6 +98,9 @@ internal sealed class TradeClient : IDisposable
         Packet? hostReply;
         do
         {
+            if (_listenerCancellation.IsCancellationRequested)
+                return;
+
             Log("Sending HostRequest");
             ClearPacketQueue();
             SendPiaPayload(new HostRequest { SessionId = _sessionInfo.SessionId });
@@ -120,6 +129,9 @@ internal sealed class TradeClient : IDisposable
 
         while (true)
         {
+            if (_listenerCancellation.IsCancellationRequested)
+                return;
+
             Log("Sending ConnectionRequest");
             ClearPacketQueue();
             SendPiaPayload(new ConnectionRequest
@@ -155,6 +167,9 @@ internal sealed class TradeClient : IDisposable
         Packet? responsePacket;
         while (true)
         {
+            if (_listenerCancellation.IsCancellationRequested)
+                return;
+
             Log("Sending ConnectionResponse");
             ClearPacketQueue();
             ack = GenerateAcknowledgementId();
@@ -222,6 +237,9 @@ internal sealed class TradeClient : IDisposable
         Packet? responsePacket;
         while (true)
         {
+            if (_listenerCancellation.IsCancellationRequested)
+                return;
+
             Log("Sending JoinRequest");
             ClearPacketQueue();
             var ack = GenerateAcknowledgementId();
@@ -327,8 +345,8 @@ internal sealed class TradeClient : IDisposable
                 if (source.Address.Equals(StationLocation.PrivateAddress.Address))
                     continue;
 
-                var payload = receiveBuffer.AsMemory(0, bytesReceived).ToArray();
-                if (payload.Length >= 4 && payload.AsSpan(0, 4).SequenceEqual(new byte[] { 0x32, 0xAB, 0x98, 0x64 }))
+                var payload = receiveBuffer.AsMemory(0, bytesReceived);
+                if (payload.Span.StartsWith(PiaPacket.Magic))
                 {
                     if (_sessionKey.Length == 0)
                     {
@@ -346,13 +364,15 @@ internal sealed class TradeClient : IDisposable
                             Monitor.PulseAll(_queueLock);
                         }
                     }
-                    catch (CryptographicException)
+                    catch (CryptographicException ex)
                     {
-                        Log("Failed to decrypt packet");
+                        Log($"Failed to decrypt packet: {ex.Message}");
+                        Debug.WriteLine(ex.StackTrace);
                     }
-                    catch (InvalidOperationException)
+                    catch (InvalidOperationException ex)
                     {
-                        Log("Failed to parse packet");
+                        Log($"Failed to parse packet: {ex.Message}");
+                        Debug.WriteLine(ex.StackTrace);
                     }
                 }
                 else
@@ -523,6 +543,5 @@ internal sealed class TradeClient : IDisposable
         }
 
         _socket.Dispose();
-        _listenerCancellation.Dispose();
     }
 }

@@ -1,0 +1,33 @@
+namespace PokePia.Protocol;
+
+internal enum PiaProtocol : byte
+{
+    KeepAlive = 0x08,
+    Station = 0x14,
+    Mesh = 0x18,
+    SyncClock = 0x1C,
+    Local = 0x24,
+    Direct = 0x28,
+    Net = 0x2C,
+    Nat = 0x34,
+    Lan = 0x44,
+    BandwidthCheck = 0x54,
+    Rtt = 0x58,
+    Sync = 0x64,
+    SyncEvent = 0x65,
+    Unreliable = 0x68,
+    RoundRobinUnreliable = 0x6C,
+    Clone = 0x73,
+    CloneAtomic = 0x74,
+    CloneEvent = 0x75,
+    CloneClock = 0x77,
+    Voice = 0x78,
+    Reliable = 0x7C,
+    BroadcastReliable = 0x80,
+    ReliableBroadcast = 0x84,
+    Session = 0x94,
+    Lobby = 0x98,
+    Feedback = 0xA4,
+    RelayService = 0xA8,
+    WanNat = 0xAC,
+}

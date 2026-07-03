@@ -5,38 +5,6 @@ using PokePia.Binary;
 
 namespace PokePia.Protocol;
 
-internal enum PiaProtocol : byte
-{
-    KeepAlive = 0x08,
-    Station = 0x14,
-    Mesh = 0x18,
-    SyncClock = 0x1C,
-    Local = 0x24,
-    Direct = 0x28,
-    Net = 0x2C,
-    Nat = 0x34,
-    Lan = 0x44,
-    BandwidthCheck = 0x54,
-    Rtt = 0x58,
-    Sync = 0x64,
-    SyncEvent = 0x65,
-    Unreliable = 0x68,
-    RoundRobinUnreliable = 0x6C,
-    Clone = 0x73,
-    CloneAtomic = 0x74,
-    CloneEvent = 0x75,
-    CloneClock = 0x77,
-    Voice = 0x78,
-    Reliable = 0x7C,
-    BroadcastReliable = 0x80,
-    ReliableBroadcast = 0x84,
-    Session = 0x94,
-    Lobby = 0x98,
-    Feedback = 0xA4,
-    RelayService = 0xA8,
-    WanNat = 0xAC,
-}
-
 internal sealed class PiaPacket : IByteSerializable
 {
     private static readonly byte[] Magic = [0x32, 0xAB, 0x98, 0x64];
@@ -59,17 +27,12 @@ internal sealed class PiaPacket : IByteSerializable
     }
 
     public bool IsEncrypted { get; }
-
     public byte Version { get; }
-
     public byte ConnectionId { get; }
-
     public ushort PacketId { get; }
 
     public ReadOnlyMemory<byte> Nonce { get; }
-
     public ReadOnlyMemory<byte> AuthTag { get; }
-
     public ReadOnlyMemory<byte> Data { get; }
 
     public static PiaPacket Parse(ReadOnlyMemory<byte> data)
@@ -179,33 +142,14 @@ internal sealed class PiaPacket : IByteSerializable
 
 internal sealed class PiaMessage : IByteSerializable
 {
-    public PiaMessage(byte flags, byte messageFlags, ushort payloadSize, PiaProtocol protocolType, int protocolPort, ulong destination, ulong source, ReadOnlyMemory<byte> payload)
-    {
-        Flags = flags;
-        MessageFlags = messageFlags;
-        PayloadSize = payloadSize;
-        ProtocolType = protocolType;
-        ProtocolPort = protocolPort;
-        Destination = destination;
-        Source = source;
-        Payload = payload;
-    }
-
-    public byte Flags { get; }
-
-    public byte MessageFlags { get; }
-
-    public ushort PayloadSize { get; }
-
-    public PiaProtocol ProtocolType { get; }
-
-    public int ProtocolPort { get; }
-
-    public ulong Destination { get; }
-
-    public ulong Source { get; }
-
-    public ReadOnlyMemory<byte> Payload { get; }
+    public required byte Flags { get; init; }
+    public required byte MessageFlags { get; init; }
+    public required ushort PayloadSize { get; init; }
+    public required PiaProtocol ProtocolType { get; init; }
+    public required int ProtocolPort { get; init; }
+    public required ulong Destination { get; init; }
+    public required ulong Source { get; init; }
+    public required ReadOnlyMemory<byte> Payload { get; init; }
 
     public static IReadOnlyList<PiaMessage> ParseMany(ReadOnlyMemory<byte> data)
     {
@@ -271,7 +215,17 @@ internal sealed class PiaMessage : IByteSerializable
             // ptr &= 0xFFFFFFFC
             // This is equivalent to: ptr = (ptr + 3) & ~3
             pointer = (pointer + 3) & ~3;
-            messages.Add(new PiaMessage(flags, messageFlags, payloadSize, protocolType, protocolPort, destination, source, payload));
+            messages.Add(new PiaMessage
+            {
+                Flags = flags,
+                MessageFlags = messageFlags,
+                PayloadSize = payloadSize,
+                ProtocolType = protocolType,
+                ProtocolPort = protocolPort,
+                Destination = destination,
+                Source = source,
+                Payload = payload,
+            });
         }
 
         return messages;
@@ -286,7 +240,17 @@ internal sealed class PiaMessage : IByteSerializable
     public static PiaMessage FromPayload(IPiaPayload payload, int protocolPort = 0, ulong destination = 0, ulong source = 0)
     {
         var bytes = payload.ToArray();
-        return new PiaMessage(127, payload.MessageFlags, checked((ushort)bytes.Length), payload.Protocol, protocolPort, destination, source, bytes);
+        return new PiaMessage
+        {
+            Flags = 127,
+            MessageFlags = payload.MessageFlags,
+            PayloadSize = checked((ushort)bytes.Length),
+            ProtocolType = payload.Protocol,
+            ProtocolPort = protocolPort,
+            Destination = destination,
+            Source = source,
+            Payload = bytes,
+        };
     }
 
     public byte[] ToArray()

@@ -150,13 +150,13 @@ internal sealed class SessionSearchCriteria : IByteSerializable
     }
 }
 
-internal sealed class BrowseRequest(SessionSearchCriteria searchCriteria, CryptoChallenge cryptoChallenge) : IByteSerializable
+internal sealed class BrowseRequest : IByteSerializable
 {
     public const byte PacketType = 0;
 
-    public SessionSearchCriteria SearchCriteria { get; } = searchCriteria ?? throw new ArgumentNullException(nameof(searchCriteria));
+    public required SessionSearchCriteria SearchCriteria { get; init; }
+    public required CryptoChallenge CryptoChallenge { get; init; }
 
-    public CryptoChallenge CryptoChallenge { get; } = cryptoChallenge ?? throw new ArgumentNullException(nameof(cryptoChallenge));
 
     public byte[] ToArray()
     {
@@ -193,44 +193,23 @@ internal sealed class LanPlayerInfo(byte role, byte encodingType, ReadOnlyMemory
 
 internal sealed class SessionInfo
 {
-    public SessionInfo(uint gameMode, uint sessionId, IReadOnlyList<uint> attributes, ushort numberOfPlayers, ushort minimumPlayers, ushort maximumPlayers, byte systemCommunicationVersion, byte applicationCommunicationVersion, ushort sessionType, ReadOnlyMemory<byte> appData, bool isOpened, IPEndPoint hostAddress, ulong hostConstantId, uint hostVariableId, uint hostServiceVariableId, IReadOnlyList<LanPlayerInfo> playerInfo, ReadOnlyMemory<byte> sessionKeyParameter)
-    {
-        GameMode = gameMode;
-        SessionId = sessionId;
-        Attributes = attributes;
-        NumberOfPlayers = numberOfPlayers;
-        MinimumPlayers = minimumPlayers;
-        MaximumPlayers = maximumPlayers;
-        SystemCommunicationVersion = systemCommunicationVersion;
-        ApplicationCommunicationVersion = applicationCommunicationVersion;
-        SessionType = sessionType;
-        AppData = appData;
-        IsOpened = isOpened;
-        HostAddress = hostAddress;
-        HostConstantId = hostConstantId;
-        HostVariableId = hostVariableId;
-        HostServiceVariableId = hostServiceVariableId;
-        PlayerInfo = playerInfo;
-        SessionKeyParameter = sessionKeyParameter;
-    }
-
-    public uint GameMode { get; }
-    public uint SessionId { get; }
-    public IReadOnlyList<uint> Attributes { get; }
-    public ushort NumberOfPlayers { get; }
-    public ushort MinimumPlayers { get; }
-    public ushort MaximumPlayers { get; }
-    public byte SystemCommunicationVersion { get; }
-    public byte ApplicationCommunicationVersion { get; }
-    public ushort SessionType { get; }
-    public ReadOnlyMemory<byte> AppData { get; }
-    public bool IsOpened { get; }
-    public IPEndPoint HostAddress { get; }
-    public ulong HostConstantId { get; }
-    public uint HostVariableId { get; }
-    public uint HostServiceVariableId { get; }
-    public IReadOnlyList<LanPlayerInfo> PlayerInfo { get; }
-    public ReadOnlyMemory<byte> SessionKeyParameter { get; }
+    public required uint GameMode { get; init; }
+    public required uint SessionId { get; init; }
+    public required IReadOnlyList<uint> Attributes { get; init; }
+    public required ushort NumberOfPlayers { get; init; }
+    public required ushort MinimumPlayers { get; init; }
+    public required ushort MaximumPlayers { get; init; }
+    public required byte SystemCommunicationVersion { get; init; }
+    public required byte ApplicationCommunicationVersion { get; init; }
+    public required ushort SessionType { get; init; }
+    public required ReadOnlyMemory<byte> AppData { get; init; }
+    public required bool IsOpened { get; init; }
+    public required IPEndPoint HostAddress { get; init; }
+    public required ulong HostConstantId { get; init; }
+    public required uint HostVariableId { get; init; }
+    public required uint HostServiceVariableId { get; init; }
+    public required IReadOnlyList<LanPlayerInfo> PlayerInfo { get; init; }
+    public required ReadOnlyMemory<byte> SessionKeyParameter { get; init; }
 
     public static SessionInfo Parse(ReadOnlyMemory<byte> data)
     {
@@ -262,7 +241,26 @@ internal sealed class SessionInfo
             players.Add(LanPlayerInfo.Parse(playerInfoBytes.Slice(index * 50, 50).ToArray()));
 
         var sessionKeyParameter = reader.ReadSpanAndAdvance(32).ToArray();
-        return new SessionInfo(gameMode, sessionId, attributes, numberOfPlayers, minimumPlayers, maximumPlayers, systemCommunicationVersion, applicationCommunicationVersion, sessionType, appData, isOpened, new IPEndPoint(hostIp, hostPort), hostConstantId, hostVariableId, hostServiceVariableId, players, sessionKeyParameter);
+        return new SessionInfo
+        {
+            GameMode = gameMode,
+            SessionId = sessionId,
+            Attributes = attributes,
+            NumberOfPlayers = numberOfPlayers,
+            MinimumPlayers = minimumPlayers,
+            MaximumPlayers = maximumPlayers,
+            SystemCommunicationVersion = systemCommunicationVersion,
+            ApplicationCommunicationVersion = applicationCommunicationVersion,
+            SessionType = sessionType,
+            AppData = appData,
+            IsOpened = isOpened,
+            HostAddress = new IPEndPoint(hostIp, hostPort),
+            HostConstantId = hostConstantId,
+            HostVariableId = hostVariableId,
+            HostServiceVariableId = hostServiceVariableId,
+            PlayerInfo = players,
+            SessionKeyParameter = sessionKeyParameter,
+        };
     }
 }
 
@@ -270,9 +268,9 @@ internal sealed class BrowseReply(SessionInfo sessionInfo, CryptoChallenge crypt
 {
     public const byte PacketType = 1;
 
-    public SessionInfo SessionInfo { get; } = sessionInfo ?? throw new ArgumentNullException(nameof(sessionInfo));
+    public SessionInfo SessionInfo { get; } = sessionInfo;
 
-    public CryptoChallenge CryptoChallengeReply { get; } = cryptoChallengeReply ?? throw new ArgumentNullException(nameof(cryptoChallengeReply));
+    public CryptoChallenge CryptoChallengeReply { get; } = cryptoChallengeReply;
 
     public ReadOnlyMemory<byte> SessionKey
     {
@@ -280,7 +278,7 @@ internal sealed class BrowseReply(SessionInfo sessionInfo, CryptoChallenge crypt
         {
             var keyParameter = SessionInfo.SessionKeyParameter.ToArray();
             keyParameter[^1]++;
-            return HMACSHA256.HashData(LanProtocol.GameKey, keyParameter)[..16];
+            return HMACSHA256.HashData(LanProtocol.GameKey, keyParameter).AsMemory()[..16];
         }
     }
 
@@ -290,19 +288,19 @@ internal sealed class BrowseReply(SessionInfo sessionInfo, CryptoChallenge crypt
         var packetType = reader.ReadByte();
         var size = reader.ReadUInt32BigEndian();
         if (packetType != PacketType || size != 0x511)
-        {
             throw new InvalidOperationException("Unexpected browse reply header.");
-        }
 
-        return new BrowseReply(SessionInfo.Parse(reader.ReadSpanAndAdvance(1297).ToArray()), CryptoChallenge.Parse(reader.ReadSpanAndAdvance(58).ToArray()));
+        var session = reader.ReadSpanAndAdvance(1297);
+        var cryptoChallenge = reader.ReadSpanAndAdvance(58);
+        return new BrowseReply(SessionInfo.Parse(session.ToArray()), CryptoChallenge.Parse(cryptoChallenge.ToArray()));
     }
 }
 
-internal sealed class HostRequest(uint sessionId) : IPiaPayload
+internal sealed class HostRequest : IPiaPayload
 {
     public const byte PacketType = 3;
 
-    public uint SessionId { get; } = sessionId;
+    public required uint SessionId { get; init; }
     public PiaProtocol Protocol => PiaProtocol.Lan;
     public byte MessageFlags => 9;
 
@@ -322,7 +320,7 @@ internal sealed class HostMessage(uint sessionId, StationLocation stationLocatio
 
     public uint SessionId { get; } = sessionId;
 
-    public StationLocation StationLocation { get; } = stationLocation ?? throw new ArgumentNullException(nameof(stationLocation));
+    public StationLocation StationLocation { get; } = stationLocation;
 
     public static HostMessage Parse(ReadOnlyMemory<byte> data)
     {

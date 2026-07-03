@@ -2,14 +2,14 @@ using PokePia.Binary;
 
 namespace PokePia.Protocol;
 
-internal sealed class JoinRequest(uint ackId) : IPiaPayload
+internal sealed class JoinRequest : IPiaPayload
 {
     public const byte PacketType = 1;
 
-    public uint AckId { get; } = ackId;
+    public required uint AckId { get; init; }
+    public Ack Ack() => new() { AckId = AckId };
 
     public PiaProtocol Protocol => PiaProtocol.Mesh;
-
     public byte MessageFlags => 9;
 
     public byte[] ToArray()
@@ -22,23 +22,24 @@ internal sealed class JoinRequest(uint ackId) : IPiaPayload
     }
 }
 
-internal sealed class JoinResponse(byte stationCount, byte hostStation, byte joiningStation, byte fragmentCount, byte fragmentIndex, byte fragmentStationInfoCount, byte fragmentBaseStationInfo, byte maxStationsActive, byte maxStationsBuffer, byte maxStationsTotal, uint updateCounter, ReadOnlyMemory<byte> stationInfoBytes, uint ackId)
+internal sealed class JoinResponse
 {
     public const byte PacketType = 2;
 
-    public byte StationCount { get; } = stationCount;
-    public byte HostStation { get; } = hostStation;
-    public byte JoiningStation { get; } = joiningStation;
-    public byte FragmentCount { get; } = fragmentCount;
-    public byte FragmentIndex { get; } = fragmentIndex;
-    public byte FragmentStationInfoCount { get; } = fragmentStationInfoCount;
-    public byte FragmentBaseStationInfo { get; } = fragmentBaseStationInfo;
-    public byte MaxStationsActive { get; } = maxStationsActive;
-    public byte MaxStationsBuffer { get; } = maxStationsBuffer;
-    public byte MaxStationsTotal { get; } = maxStationsTotal;
-    public uint UpdateCounter { get; } = updateCounter;
-    public ReadOnlyMemory<byte> StationInfoBytes { get; } = stationInfoBytes;
-    public uint AckId { get; } = ackId;
+    public required byte StationCount { get; init; }
+    public required byte HostStation { get; init; }
+    public required byte JoiningStation { get; init; }
+    public required byte FragmentCount { get; init; }
+    public required byte FragmentIndex { get; init; }
+    public required byte FragmentStationInfoCount { get; init; }
+    public required byte FragmentBaseStationInfo { get; init; }
+    public required byte MaxStationsActive { get; init; }
+    public required byte MaxStationsBuffer { get; init; }
+    public required byte MaxStationsTotal { get; init; }
+    public required uint UpdateCounter { get; init; }
+    public required ReadOnlyMemory<byte> StationInfoBytes { get; init; }
+    public required uint AckId { get; init; }
+    public Ack Ack() => new() { AckId = AckId };
 
     public static JoinResponse Parse(ReadOnlyMemory<byte> data)
     {
@@ -63,6 +64,21 @@ internal sealed class JoinResponse(byte stationCount, byte hostStation, byte joi
         var updateCounter = reader.ReadUInt32BigEndian();
         var stationInfoBytes = reader.ReadSpanAndAdvance(stationInfoBytesLength).ToArray();
         var ackId = reader.ReadUInt32BigEndian();
-        return new JoinResponse(stationCount, hostStation, joiningStation, fragmentCount, fragmentIndex, fragmentStationInfoCount, fragmentBaseStationInfo, maxStationsActive, maxStationsBuffer, maxStationsTotal, updateCounter, stationInfoBytes, ackId);
+        return new JoinResponse
+        {
+            StationCount = stationCount,
+            HostStation = hostStation,
+            JoiningStation = joiningStation,
+            FragmentCount = fragmentCount,
+            FragmentIndex = fragmentIndex,
+            FragmentStationInfoCount = fragmentStationInfoCount,
+            FragmentBaseStationInfo = fragmentBaseStationInfo,
+            MaxStationsActive = maxStationsActive,
+            MaxStationsBuffer = maxStationsBuffer,
+            MaxStationsTotal = maxStationsTotal,
+            UpdateCounter = updateCounter,
+            StationInfoBytes = stationInfoBytes,
+            AckId = ackId,
+        };
     }
 }

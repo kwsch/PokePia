@@ -25,6 +25,9 @@ internal sealed class TradeClient : IDisposable
     private StationLocation? _hostStationLocation;
     private byte[] _sessionKey = [];
 
+    public StationLocation StationLocation { get; }
+    private Action<string> Log { get; }
+
     public TradeClient(Action<string>? logger = null)
     {
         Log = logger ?? Console.WriteLine;
@@ -43,10 +46,6 @@ internal sealed class TradeClient : IDisposable
         ];
     }
 
-    public StationLocation StationLocation { get; }
-
-    private Action<string> Log { get; }
-
     /// <summary>
     /// Broadcasts LAN search traffic and discovers host session metadata.
     /// </summary>
@@ -60,8 +59,9 @@ internal sealed class TradeClient : IDisposable
         {
             Log("Broadcasting BrowseRequest");
             ClearPacketQueue();
-            var request = new BrowseRequest(
-                new SessionSearchCriteria(
+            var request = new BrowseRequest
+            {
+                SearchCriteria = new SessionSearchCriteria(
                     minimumPlayers: -1,
                     maximumPlayers: 2,
                     openedOnly: true,
@@ -72,7 +72,8 @@ internal sealed class TradeClient : IDisposable
                     sessionType: 0,
                     attributeData: ReadOnlyMemory<byte>.Empty,
                     searchFlags: 0x10 | 0x2),
-                CryptoChallenge.GenerateChallenge(challengeCounter, StationLocation.PrivateAddress.Address));
+                CryptoChallenge = CryptoChallenge.GenerateChallenge(challengeCounter, StationLocation.PrivateAddress.Address),
+            };
 
             BroadcastPacket(request, 30000);
             challengeCounter++;
@@ -93,7 +94,7 @@ internal sealed class TradeClient : IDisposable
         {
             Log("Sending HostRequest");
             ClearPacketQueue();
-            SendPiaPayload(new HostRequest(_sessionInfo.SessionId));
+            SendPiaPayload(new HostRequest { SessionId = _sessionInfo.SessionId });
             hostReply = WaitForPacket(packet => packet is { IsPia: true, PacketType: HostMessage.PacketType }, TimeSpan.FromSeconds(5));
             if (hostReply is null)
                 Log("No HostMessage found after 5 seconds...");
@@ -121,7 +122,17 @@ internal sealed class TradeClient : IDisposable
         {
             Log("Sending ConnectionRequest");
             ClearPacketQueue();
-            SendPiaPayload(new ConnectionRequest(_connectionId, 9, false, _hostStationLocation!.ConstantId, _hostStationLocation.VariableId, 0, StationLocation, ack));
+            SendPiaPayload(new ConnectionRequest
+            {
+                ConnectionId = _connectionId,
+                Version = 9,
+                IsInverseConnection = false,
+                TargetConstantId = _hostStationLocation!.ConstantId,
+                TargetVariableId = _hostStationLocation.VariableId,
+                InverseConnectionId = 0,
+                StationLocation = StationLocation,
+                AckId = ack,
+            });
 
             if (WaitForAck(ack, TimeSpan.FromSeconds(5)))
             {
@@ -139,7 +150,7 @@ internal sealed class TradeClient : IDisposable
 
         var inverseRequest = ConnectionRequest.Parse(inverseRequestPacket.PiaMessage!.Payload);
         Log($"Inverse request received connection id: {inverseRequest.ConnectionId}");
-        SendPiaPayload(new Ack(inverseRequest.AckId));
+        SendPiaPayload(inverseRequest.Ack());
 
         Packet? responsePacket;
         while (true)
@@ -148,31 +159,34 @@ internal sealed class TradeClient : IDisposable
             ClearPacketQueue();
             ack = GenerateAcknowledgementId();
 
-            SendPiaPayload(
-                new ConnectionResponse(
-                    result: 0,
-                    version: 9,
-                    platformId: 4,
-                    fragmentId: 0,
-                    targetConstantId: _hostStationLocation.ConstantId,
-                    targetVariableId: _hostStationLocation.VariableId,
-                    identifier: Convert.FromHexString("0100000000000000000000000000000000000000000000000000000000000000"),
-                    sessionId: _sessionInfo!.SessionId,
-                    playerCount: 1,
-                    participantCount: 1,
-                    playerInfoCount: 1,
-                    playerInfo:
-                    [
-                        new StationPlayerInfo(
-                            playerName: " ",
-                            playerNameEncodingType: 1,
-                            accountName: " ",
-                            accountNameEncodingType: 1,
-                            language: 0,
-                            playHistoryRegistrationKey: ReadOnlyMemory<byte>.Empty,
-                            principalId: 0),
-                    ],
-                    ackId: ack));
+            SendPiaPayload(new ConnectionResponse
+            {
+                Result = 0,
+                Version = 9,
+                PlatformId = 4,
+                FragmentId = 0,
+                TargetConstantId = _hostStationLocation.ConstantId,
+                TargetVariableId = _hostStationLocation.VariableId,
+                Identifier = Convert.FromHexString("0100000000000000000000000000000000000000000000000000000000000000"),
+                SessionId = _sessionInfo!.SessionId,
+                PlayerCount = 1,
+                ParticipantCount = 1,
+                PlayerInfoCount = 1,
+                PlayerInfo =
+                [
+                    new StationPlayerInfo
+                    {
+                        PlayerName = " ",
+                        PlayerNameEncodingType = 1,
+                        AccountName = " ",
+                        AccountNameEncodingType = 1,
+                        Language = 0,
+                        PlayHistoryRegistrationKey = ReadOnlyMemory<byte>.Empty,
+                        PrincipalId = 0,
+                    },
+                ],
+                AckId = ack,
+            });
 
             if (WaitForAck(ack, TimeSpan.FromSeconds(5)))
             {
@@ -192,11 +206,9 @@ internal sealed class TradeClient : IDisposable
         Log("ConnectionResponse received");
         Log("Players connected:");
         for (var index = 0; index < response.PlayerInfoCount; index++)
-        {
             Log($"  Player {index + 1}: {response.PlayerInfo[index].AccountName}");
-        }
 
-        SendPiaPayload(new Ack(response.AckId));
+        SendPiaPayload(response.Ack());
     }
 
     /// <summary>
@@ -213,7 +225,7 @@ internal sealed class TradeClient : IDisposable
             Log("Sending JoinRequest");
             ClearPacketQueue();
             var ack = GenerateAcknowledgementId();
-            SendPiaPayload(new JoinRequest(ack));
+            SendPiaPayload(new JoinRequest { AckId = ack });
 
             if (WaitForAck(ack, TimeSpan.FromSeconds(5)))
             {
@@ -231,7 +243,7 @@ internal sealed class TradeClient : IDisposable
 
         var response = JoinResponse.Parse(responsePacket.PiaMessage!.Payload);
         Log("JoinResponse received");
-        SendPiaPayload(new Ack(response.AckId));
+        SendPiaPayload(response.Ack());
     }
 
     /// <summary>
@@ -273,9 +285,7 @@ internal sealed class TradeClient : IDisposable
 
             var payload = packet.PiaMessage!.Payload;
             if ((packet.PiaMessage.MessageFlags & 0x10) != 0)
-            {
                 payload = DecompressReliablePayload(payload);
-            }
 
             var data = ReliableBroadcastMessageData.Parse(payload);
             if (data.FragmentIndex == chunks.Count)
@@ -411,7 +421,7 @@ internal sealed class TradeClient : IDisposable
         }
     }
 
-    private void BroadcastPacket(IByteSerializable packet, int port)
+    private void BroadcastPacket(BrowseRequest packet, int port)
     {
         _socket.SendTo(packet.ToArray(), new IPEndPoint(IPAddress.Broadcast, port));
     }
@@ -447,10 +457,7 @@ internal sealed class TradeClient : IDisposable
         var hostName = Dns.GetHostName();
         var addresses = Dns.GetHostAddresses(hostName);
         var ipv4 = addresses.FirstOrDefault(address => address.AddressFamily == AddressFamily.InterNetwork);
-        if (ipv4 is null)
-            throw new InvalidOperationException("No IPv4 address found for local host.");
-
-        return ipv4;
+        return ipv4 ?? throw new InvalidOperationException("No IPv4 address found for local host.");
     }
 
     private ushort GeneratePacketId()
@@ -462,7 +469,7 @@ internal sealed class TradeClient : IDisposable
         return _packetIdCounter;
     }
 
-    private byte GenerateConnectionId()
+    private static byte GenerateConnectionId()
     {
         return (byte)Random.Shared.Next(1, 256);
     }

@@ -8,34 +8,18 @@ namespace PokePia.Protocol;
 
 internal sealed class StationLocation : IByteSerializable
 {
-    public StationLocation(byte publicAddressSize, byte privateAddressSize, IPEndPoint publicAddress, IPEndPoint privateAddress, IPEndPoint relayAddress, ulong constantId, uint variableId, uint serviceVariableId, byte flags, byte natLocation, byte probeInit, bool isPrivateAddressAvailable)
-    {
-        PublicAddressSize = publicAddressSize;
-        PrivateAddressSize = privateAddressSize;
-        PublicAddress = publicAddress;
-        PrivateAddress = privateAddress ?? throw new ArgumentNullException(nameof(privateAddress));
-        RelayAddress = relayAddress ?? throw new ArgumentNullException(nameof(relayAddress));
-        ConstantId = constantId;
-        VariableId = variableId;
-        ServiceVariableId = serviceVariableId;
-        Flags = flags;
-        NatLocation = natLocation;
-        ProbeInit = probeInit;
-        IsPrivateAddressAvailable = isPrivateAddressAvailable;
-    }
-
-    public byte PublicAddressSize { get; }
-    public byte PrivateAddressSize { get; }
-    public IPEndPoint PublicAddress { get; }
-    public IPEndPoint PrivateAddress { get; }
-    public IPEndPoint RelayAddress { get; }
-    public ulong ConstantId { get; }
-    public uint VariableId { get; }
-    public uint ServiceVariableId { get; }
-    public byte Flags { get; }
-    public byte NatLocation { get; }
-    public byte ProbeInit { get; }
-    public bool IsPrivateAddressAvailable { get; }
+    public required byte PublicAddressSize { get; init; }
+    public required byte PrivateAddressSize { get; init; }
+    public required IPEndPoint PublicAddress { get; init; }
+    public required IPEndPoint PrivateAddress { get; init; }
+    public required IPEndPoint RelayAddress { get; init; }
+    public required ulong ConstantId { get; init; }
+    public required uint VariableId { get; init; }
+    public required uint ServiceVariableId { get; init; }
+    public required byte Flags { get; init; }
+    public required byte NatLocation { get; init; }
+    public required byte ProbeInit { get; init; }
+    public required bool IsPrivateAddressAvailable { get; init; }
 
     public static StationLocation FromAddress(IPEndPoint address)
     {
@@ -45,19 +29,21 @@ internal sealed class StationLocation : IByteSerializable
         var addressBytes = address.Address.GetAddressBytes();
         var ipValue = BinaryPrimitives.ReadUInt32BigEndian(addressBytes);
         var variableIdBytes = RandomNumberGenerator.GetBytes(sizeof(uint));
-        return new StationLocation(
-            2,
-            6,
-            new IPEndPoint(IPAddress.Any, 0),
-            address,
-            new IPEndPoint(IPAddress.Any, 0),
-            ((ulong)ipValue << 32) | (uint)address.Port,
-            BinaryPrimitives.ReadUInt32LittleEndian(variableIdBytes),
-            ((ipValue & 0xFFFFu) << 16) | (uint)address.Port,
-            0,
-            0,
-            0,
-            true);
+        return new StationLocation
+        {
+            PublicAddressSize = 2,
+            PrivateAddressSize = 6,
+            PublicAddress = new IPEndPoint(IPAddress.Any, 0),
+            PrivateAddress = address,
+            RelayAddress = new IPEndPoint(IPAddress.Any, 0),
+            ConstantId = ((ulong)ipValue << 32) | (uint)address.Port,
+            VariableId = BinaryPrimitives.ReadUInt32LittleEndian(variableIdBytes),
+            ServiceVariableId = ((ipValue & 0xFFFFu) << 16) | (uint)address.Port,
+            Flags = 0,
+            NatLocation = 0,
+            ProbeInit = 0,
+            IsPrivateAddressAvailable = true,
+        };
     }
 
     public static StationLocation Parse(ReadOnlyMemory<byte> data)
@@ -83,19 +69,27 @@ internal sealed class StationLocation : IByteSerializable
         var natLocation = reader.ReadByte();
         var probeInit = reader.ReadByte();
         var isPrivateAddressAvailable = reader.ReadBoolean();
-        return new StationLocation(
-            publicAddressSize,
-            privateAddressSize,
-            publicAddressSize > 2 ? new IPEndPoint(new IPAddress(publicIpBytes), publicPort) : new IPEndPoint(IPAddress.Any, publicPort),
-            new IPEndPoint(privateIp, privatePort),
-            new IPEndPoint(relayIp, relayPort),
-            constantId,
-            variableId,
-            serviceVariableId,
-            flags,
-            natLocation,
-            probeInit,
-            isPrivateAddressAvailable);
+
+        var publicAddress = publicAddressSize > 2
+            ? new IPEndPoint(new IPAddress(publicIpBytes), publicPort)
+            : new IPEndPoint(IPAddress.Any, publicPort);
+
+        return new StationLocation
+        {
+            PublicAddressSize = publicAddressSize,
+            PrivateAddressSize = privateAddressSize,
+            PublicAddress = publicAddress,
+            PrivateAddress = new IPEndPoint(privateIp, privatePort),
+            RelayAddress = new IPEndPoint(relayIp, relayPort),
+
+            ConstantId = constantId,
+            VariableId = variableId,
+            ServiceVariableId = serviceVariableId,
+            Flags = flags,
+            NatLocation = natLocation,
+            ProbeInit = probeInit,
+            IsPrivateAddressAvailable = isPrivateAddressAvailable,
+        };
     }
 
     public byte[] ToArray()
@@ -122,18 +116,19 @@ internal sealed class StationLocation : IByteSerializable
     }
 }
 
-internal sealed class ConnectionRequest(byte connectionId, byte version, bool isInverseConnection, ulong targetConstantId, uint targetVariableId, byte inverseConnectionId, StationLocation stationLocation, uint ackId) : IPiaPayload
+internal sealed class ConnectionRequest : IPiaPayload
 {
     public const byte PacketType = 1;
 
-    public byte ConnectionId { get; } = connectionId;
-    public byte Version { get; } = version;
-    public bool IsInverseConnection { get; } = isInverseConnection;
-    public ulong TargetConstantId { get; } = targetConstantId;
-    public uint TargetVariableId { get; } = targetVariableId;
-    public byte InverseConnectionId { get; } = inverseConnectionId;
-    public StationLocation StationLocation { get; } = stationLocation ?? throw new ArgumentNullException(nameof(stationLocation));
-    public uint AckId { get; } = ackId;
+    public required byte ConnectionId { get; init; }
+    public required byte Version { get; init; }
+    public required bool IsInverseConnection { get; init; }
+    public required ulong TargetConstantId { get; init; }
+    public required uint TargetVariableId { get; init; }
+    public required byte InverseConnectionId { get; init; }
+    public required StationLocation StationLocation { get; init; }
+    public required uint AckId { get; init; }
+    public Ack Ack() => new() { AckId = AckId };
 
     public PiaProtocol Protocol => PiaProtocol.Station;
 
@@ -150,8 +145,18 @@ internal sealed class ConnectionRequest(byte connectionId, byte version, bool is
         var targetVariableId = reader.ReadUInt32BigEndian();
         var inverseConnectionId = reader.ReadByte();
         var ackId = BinaryPrimitives.ReadUInt32BigEndian(data.Span[^4..]);
-        var stationLocation = StationLocation.Parse(data.Slice(17, data.Length - 21));
-        return new ConnectionRequest(connectionId, version, isInverseConnection, targetConstantId, targetVariableId, inverseConnectionId, stationLocation, ackId);
+        var stationLocation = StationLocation.Parse(data[17..^4]);
+        return new ConnectionRequest
+        {
+            ConnectionId = connectionId,
+            Version = version,
+            IsInverseConnection = isInverseConnection,
+            TargetConstantId = targetConstantId,
+            TargetVariableId = targetVariableId,
+            InverseConnectionId = inverseConnectionId,
+            StationLocation = stationLocation,
+            AckId = ackId,
+        };
     }
 
     public byte[] ToArray()
@@ -170,15 +175,15 @@ internal sealed class ConnectionRequest(byte connectionId, byte version, bool is
     }
 }
 
-internal sealed class StationPlayerInfo(string playerName, byte playerNameEncodingType, string accountName, byte accountNameEncodingType, byte language, ReadOnlyMemory<byte> playHistoryRegistrationKey, ulong principalId) : IByteSerializable
+internal sealed class StationPlayerInfo : IByteSerializable
 {
-    public string PlayerName { get; } = playerName;
-    public byte PlayerNameEncodingType { get; } = playerNameEncodingType;
-    public string AccountName { get; } = accountName;
-    public byte AccountNameEncodingType { get; } = accountNameEncodingType;
-    public byte Language { get; } = language;
-    public ReadOnlyMemory<byte> PlayHistoryRegistrationKey { get; } = playHistoryRegistrationKey;
-    public ulong PrincipalId { get; } = principalId;
+    public required string PlayerName { get; init; }
+    public required byte PlayerNameEncodingType { get; init; }
+    public required string AccountName { get; init; }
+    public required byte AccountNameEncodingType { get; init; }
+    public required byte Language { get; init;  }
+    public required ReadOnlyMemory<byte> PlayHistoryRegistrationKey { get; init; }
+    public required ulong PrincipalId { get; init; }
 
     public static StationPlayerInfo Parse(ReadOnlyMemory<byte> data)
     {
@@ -190,14 +195,16 @@ internal sealed class StationPlayerInfo(string playerName, byte playerNameEncodi
         var language = reader.ReadByte();
         var playHistoryRegistrationKey = reader.ReadSpanAndAdvance(64).ToArray();
         var principalId = reader.ReadUInt64BigEndian();
-        return new StationPlayerInfo(
-            Decode(playerNameBytes, playerNameEncodingType),
-            playerNameEncodingType,
-            Decode(accountNameBytes, accountNameEncodingType),
-            accountNameEncodingType,
-            language,
-            playHistoryRegistrationKey,
-            principalId);
+        return new StationPlayerInfo
+        {
+            PlayerName = Decode(playerNameBytes, playerNameEncodingType),
+            PlayerNameEncodingType = playerNameEncodingType,
+            AccountName = Decode(accountNameBytes, accountNameEncodingType),
+            AccountNameEncodingType = accountNameEncodingType,
+            Language = language,
+            PlayHistoryRegistrationKey = playHistoryRegistrationKey,
+            PrincipalId = principalId,
+        };
     }
 
     public byte[] ToArray()
@@ -231,9 +238,7 @@ internal sealed class StationPlayerInfo(string playerName, byte playerNameEncodi
         };
 
         if (bytes.Length > fieldLength)
-        {
             throw new ArgumentException($"Encoded string exceeds field length {fieldLength}.", nameof(value));
-        }
 
         var buffer = new byte[fieldLength];
         bytes.CopyTo(buffer, 0);
@@ -241,23 +246,24 @@ internal sealed class StationPlayerInfo(string playerName, byte playerNameEncodi
     }
 }
 
-internal sealed class ConnectionResponse(byte result, byte version, byte platformId, byte fragmentId, ulong targetConstantId, uint targetVariableId, ReadOnlyMemory<byte> identifier, uint sessionId, byte playerCount, byte participantCount, byte playerInfoCount, IReadOnlyList<StationPlayerInfo> playerInfo, uint ackId) : IPiaPayload
+internal sealed class ConnectionResponse : IPiaPayload
 {
     public const byte PacketType = 2;
 
-    public byte Result { get; } = result;
-    public byte Version { get; } = version;
-    public byte PlatformId { get; } = platformId;
-    public byte FragmentId { get; } = fragmentId;
-    public ulong TargetConstantId { get; } = targetConstantId;
-    public uint TargetVariableId { get; } = targetVariableId;
-    public ReadOnlyMemory<byte> Identifier { get; } = identifier;
-    public uint SessionId { get; } = sessionId;
-    public byte PlayerCount { get; } = playerCount;
-    public byte ParticipantCount { get; } = participantCount;
-    public byte PlayerInfoCount { get; } = playerInfoCount;
-    public IReadOnlyList<StationPlayerInfo> PlayerInfo { get; } = playerInfo;
-    public uint AckId { get; } = ackId;
+    public required byte Result { get; init; }
+    public required byte Version { get; init; }
+    public required byte PlatformId { get; init; }
+    public required byte FragmentId { get; init; }
+    public required ulong TargetConstantId { get; init; }
+    public required uint TargetVariableId { get; init; }
+    public required ReadOnlyMemory<byte> Identifier { get; init; }
+    public required uint SessionId { get; init; }
+    public required byte PlayerCount { get; init; }
+    public required byte ParticipantCount { get; init; }
+    public required byte PlayerInfoCount { get; init; }
+    public required IReadOnlyList<StationPlayerInfo> PlayerInfo { get; init; }
+    public required uint AckId { get; init; }
+    public Ack Ack() => new() { AckId = AckId };
 
     public PiaProtocol Protocol => PiaProtocol.Station;
 
@@ -288,7 +294,22 @@ internal sealed class ConnectionResponse(byte result, byte version, byte platfor
             players.Add(StationPlayerInfo.Parse(playerInfoBytes.AsMemory(index * 195, 195)));
         }
 
-        return new ConnectionResponse(result, version, platformId, fragmentId, targetConstantId, targetVariableId, identifier, sessionId, playerCount, participantCount, playerInfoCount, players, ackId);
+        return new ConnectionResponse
+        {
+            Result = result,
+            Version = version,
+            PlatformId = platformId,
+            FragmentId = fragmentId,
+            TargetConstantId = targetConstantId,
+            TargetVariableId = targetVariableId,
+            Identifier = identifier,
+            SessionId = sessionId,
+            PlayerCount = playerCount,
+            ParticipantCount = participantCount,
+            PlayerInfoCount = playerInfoCount,
+            PlayerInfo = players,
+            AckId = ackId,
+        };
     }
 
     public byte[] ToArray()
@@ -319,11 +340,11 @@ internal sealed class ConnectionResponse(byte result, byte version, byte platfor
     }
 }
 
-internal sealed class Ack(uint ackId) : IPiaPayload
+internal sealed class Ack : IPiaPayload
 {
     public const byte PacketType = 5;
 
-    public uint AckId { get; } = ackId;
+    public required uint AckId { get; init; }
 
     public PiaProtocol Protocol => PiaProtocol.Station;
 
@@ -331,7 +352,7 @@ internal sealed class Ack(uint ackId) : IPiaPayload
 
     public static Ack Parse(ReadOnlyMemory<byte> data)
     {
-        return new Ack(BinaryPrimitives.ReadUInt32BigEndian(data.Span.Slice(4, 4)));
+        return new Ack { AckId = BinaryPrimitives.ReadUInt32BigEndian(data.Span.Slice(4, 4)) };
     }
 
     public byte[] ToArray()

@@ -21,12 +21,12 @@ Dumped files can be opened by PKHeX.
 
 ## Usage
 
-- Double click PokePia.exe and have it listen.
-- Go into LAN mode on SWSH (L + R + Left Stick in Options).
-- Start a local trade with no Link Code.
-- The program should detect your SWSH game and analyze/dump your party.
+1. Double click PokePia.exe and have it listen.
+1. Go into LAN mode on SWSH (L + R + Left Stick in Options).
+1. Start a local trade with no Link Code.
+1. The program should detect your SWSH game and analyze/dump your party.
 
-  <img width="640" height="360" alt="image" src="https://github.com/user-attachments/assets/394082a7-eafc-4e36-ba36-f81206203ec5" />
+  <img width="640" height="360" alt="Screenshot of SWSH when LAN mode is successfully enabled" src="https://github.com/user-attachments/assets/394082a7-eafc-4e36-ba36-f81206203ec5" />
 
 
 ## Notes
